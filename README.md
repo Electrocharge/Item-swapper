@@ -6,7 +6,9 @@ A native LeviLauncher mod for Minecraft Bedrock on Android (arm64-v8a).
 
 - Hold a sword and press **SWAP**: selects the first axe in the hotbar.
 - Hold an axe and press **SWAP**: selects the first sword in the hotbar.
-- Hold anything else, or have no matching tool in the hotbar: nothing happens.
+- Hold anything else: nothing happens by default.
+- Enable the **Sword Swap** setting to select a sword when holding neither a sword nor an axe.
+- If the requested item is not in the hotbar, nothing happens.
 - Only the selected hotbar index changes. Item stacks are never moved, copied, or overwritten.
 
 ## Build
