@@ -77,7 +77,7 @@ ToolKind classify(void* stack) {
     const auto* description = itemDescription(stack);
     if (!description) return ToolKind::Other;
     if (description->find("sword") != std::string::npos) return ToolKind::Sword;
-    if (description->find("axe") != std::string::npos) return ToolKind::Axe;
+    if (description->find("_axe") != std::string::npos) return ToolKind::Axe;
     return ToolKind::Other;
 }
 
