@@ -41,6 +41,7 @@ constexpr std::size_t kItemStackValidOffset = 0x23;
 using ClientInstanceUpdateFn = void* (*)(void*, bool);
 
 std::atomic<bool> gEnabled{false};
+std::atomic<bool> gSwordSwap{false};
 std::atomic<bool> gSwapRequested{false};
 ClientInstanceUpdateFn gClientInstanceUpdateOriginal = nullptr;
 
@@ -140,7 +141,8 @@ void performSwap(void* client) {
 
     void* carried = getCarriedItem(player);
     const ToolKind heldKind = classify(carried);
-    if (heldKind == ToolKind::Other) return;
+    const bool swordSwap = gSwordSwap.load(std::memory_order_acquire);
+    if (heldKind == ToolKind::Other && !swordSwap) return;
 
     auto* playerBytes = static_cast<std::byte*>(player);
     void* inventoryProxy =
@@ -153,6 +155,7 @@ void performSwap(void* client) {
     if (currentSlot < 0 || currentSlot > 8) return;
 
     const ToolKind wanted = heldKind == ToolKind::Sword ? ToolKind::Axe : ToolKind::Sword;
+    // With Sword Swap enabled, a non-sword/non-axe held item selects a sword.
     int targetSlot = -1;
     if (!findHotbarTarget(player, wanted, currentSlot, targetSlot)) return;
 
@@ -205,8 +208,15 @@ bool ItemSwapperMod::enable() {
         .description("Swap between the sword and axe in your hotbar.")
         .modId(getSelf().getId())
         .defaultEnabled(true)
+        .config("sword_swap", "Sword Swap", pl::modmenu::ConfigType::Toggle, "false")
         .onToggle([](std::string_view, bool enabled) {
             gEnabled.store(enabled, std::memory_order_release);
+        })
+        .onConfigChanged([](std::string_view, std::string_view key, std::string_view value) {
+            if (key == "sword_swap") {
+                const bool enabled = value == "true" || value == "1";
+                gSwordSwap.store(enabled, std::memory_order_release);
+            }
         })
         .registerModule();
 
