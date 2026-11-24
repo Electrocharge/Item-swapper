@@ -193,8 +193,6 @@ void performSwap(void* client) {
     const int currentSlot = *selectedSlot;
     if (currentSlot < 0 || currentSlot > 8) return;
 
-    const ToolKind wanted = heldKind == ToolKind::Sword ? ToolKind::Axe : ToolKind::Sword;
-    // With Sword Swap enabled, a non-sword/non-axe held item selects a sword.
     int targetSlot = -1;
     if (!findHotbarTarget(player, wanted, currentSlot, targetSlot)) return;
 
