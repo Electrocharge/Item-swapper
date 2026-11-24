@@ -1,6 +1,7 @@
 #include "ItemSwapper.hpp"
 
 #include <pl/ModMenu.hpp>
+#include <pl/ModMenuConfig.hpp>
 #include <pl/memory/Signature.hpp>
 
 #include <atomic>
@@ -25,6 +26,8 @@ constexpr std::size_t kClientGetLocalPlayerVtable = 31;
 constexpr std::size_t kPlayerGetCarriedItemVtable = 78;
 constexpr std::size_t kItemGetDescriptionIdVtable = 5;
 
+enum class SwapMechanic : int { SwordToAxe = 0, AxeToPickaxe = 1, SwordToPickaxe = 2 };
+
 // BedrockTools Inventory.hpp layout: Player + 0x590 -> PlayerInventory proxy;
 // proxy + 0xB8 -> inventory container; container + 0x140 -> item pointer range.
 // PlayerInventory::selectedSlot is +0x10 in independently published Bedrock SDKs.
@@ -41,7 +44,9 @@ constexpr std::size_t kItemStackValidOffset = 0x23;
 using ClientInstanceUpdateFn = void* (*)(void*, bool);
 
 std::atomic<bool> gEnabled{false};
+std::atomic<int> gSwapMechanic{static_cast<int>(SwapMechanic::SwordToAxe)};
 std::atomic<bool> gSwordSwap{false};
+std::atomic<bool> gAxeSwap{false};
 std::atomic<bool> gSwapRequested{false};
 ClientInstanceUpdateFn gClientInstanceUpdateOriginal = nullptr;
 
@@ -72,13 +77,14 @@ const std::string* itemDescription(void* stack) {
     return &description;
 }
 
-enum class ToolKind { Other, Sword, Axe };
+enum class ToolKind { Other, Sword, Axe, Pickaxe };
 
 ToolKind classify(void* stack) {
     const auto* description = itemDescription(stack);
     if (!description) return ToolKind::Other;
     if (description->find("sword") != std::string::npos) return ToolKind::Sword;
     if (description->find("_axe") != std::string::npos) return ToolKind::Axe;
+    if (description->find("pickaxe") != std::string::npos) return ToolKind::Pickaxe;
     return ToolKind::Other;
 }
 
@@ -141,8 +147,41 @@ void performSwap(void* client) {
 
     void* carried = getCarriedItem(player);
     const ToolKind heldKind = classify(carried);
-    const bool swordSwap = gSwordSwap.load(std::memory_order_acquire);
-    if (heldKind == ToolKind::Other && !swordSwap) return;
+    const auto mechanic = static_cast<SwapMechanic>(
+        gSwapMechanic.load(std::memory_order_acquire));
+
+    ToolKind source = ToolKind::Sword;
+    ToolKind target = ToolKind::Axe;
+    bool fallbackEnabled = gSwordSwap.load(std::memory_order_acquire);
+
+    switch (mechanic) {
+        case SwapMechanic::SwordToAxe:
+            source = ToolKind::Sword;
+            target = ToolKind::Axe;
+            fallbackEnabled = gSwordSwap.load(std::memory_order_acquire);
+            break;
+        case SwapMechanic::AxeToPickaxe:
+            source = ToolKind::Axe;
+            target = ToolKind::Pickaxe;
+            fallbackEnabled = gAxeSwap.load(std::memory_order_acquire);
+            break;
+        case SwapMechanic::SwordToPickaxe:
+            source = ToolKind::Sword;
+            target = ToolKind::Pickaxe;
+            fallbackEnabled = gSwordSwap.load(std::memory_order_acquire);
+            break;
+    }
+
+    ToolKind wanted = ToolKind::Other;
+    if (heldKind == source) {
+        wanted = target;
+    } else if (heldKind == target) {
+        wanted = source;
+    } else if (fallbackEnabled) {
+        wanted = source;
+    } else {
+        return;
+    }
 
     auto* playerBytes = static_cast<std::byte*>(player);
     void* inventoryProxy =
@@ -205,20 +244,77 @@ bool ItemSwapperMod::enable() {
     }
 
     const bool moduleRegistered = pl::modmenu::ModuleBuilder(kModuleId, "Item Swapper")
-        .description("Swap between the sword and axe in your hotbar.")
+        .description("Swap between selected tool types in your hotbar.")
         .modId(getSelf().getId())
         .defaultEnabled(true)
-        .config("sword_swap", "Sword Swap", pl::modmenu::ConfigType::Toggle, "false")
         .onToggle([](std::string_view, bool enabled) {
             gEnabled.store(enabled, std::memory_order_release);
         })
         .onConfigChanged([](std::string_view, std::string_view key, std::string_view value) {
-            if (key == "sword_swap") {
-                const bool enabled = value == "true" || value == "1";
-                gSwordSwap.store(enabled, std::memory_order_release);
+            if (key == "swap_mechanic") {
+                int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
+                if (value == "axe_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::AxeToPickaxe);
+                else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);
+                gSwapMechanic.store(mechanic, std::memory_order_release);
+            } else if (key == "sword_swap") {
+                gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
+            } else if (key == "axe_swap") {
+                gAxeSwap.store(value == "true" || value == "1", std::memory_order_release);
             }
         })
         .registerModule();
+
+    if (moduleRegistered) {
+        using namespace pl::modmenu;
+        ConfigSchemaBuilder schema;
+        schema.defaultCategory("general").category("general", "General");
+        
+        ConfigNodeV2 mechanic;
+        mechanic.id = "swap_mechanic";
+        mechanic.key = "swap_mechanic";
+        mechanic.category = "general";
+        mechanic.section = "Swap mechanics";
+        mechanic.title = "Swap mechanic";
+        mechanic.type = ConfigControlTypeV2::Choice;
+        mechanic.choiceStyle = ConfigChoiceStyleV2::Radio;
+        mechanic.defaultValue = "sword_to_axe";
+        mechanic.options = {
+            {"sword_to_axe", "Sword to axe"},
+            {"axe_to_pickaxe", "Axe to pickaxe"},
+            {"sword_to_pickaxe", "Sword to pickaxe"}
+        };
+        schema.node(std::move(mechanic));
+
+        ConfigNodeV2 swordFallback;
+        swordFallback.id = "sword_swap";
+        swordFallback.key = "sword_swap";
+        swordFallback.category = "general";
+        swordFallback.section = "Swap mechanics";
+        swordFallback.title = "Sword Swap";
+        swordFallback.type = ConfigControlTypeV2::Toggle;
+        swordFallback.defaultValue = "false";
+        swordFallback.visibleWhen = {
+            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "axe_to_pickaxe"}
+        };
+        schema.node(std::move(swordFallback));
+
+        ConfigNodeV2 axeFallback;
+        axeFallback.id = "axe_swap";
+        axeFallback.key = "axe_swap";
+        axeFallback.category = "general";
+        axeFallback.section = "Swap mechanics";
+        axeFallback.title = "Axe Swap";
+        axeFallback.type = ConfigControlTypeV2::Toggle;
+        axeFallback.defaultValue = "false";
+        axeFallback.visibleWhen = {
+            {"swap_mechanic", ConfigConditionOpV2::Equals, "axe_to_pickaxe"}
+        };
+        schema.node(std::move(axeFallback));
+
+        if (!setConfigSchemaJson(kModuleId, schema.toJson())) {
+            logger.warn("Item Swapper: Mod Menu rejected the Swap mechanics settings schema");
+        }
+    }
 
     const bool buttonRegistered = pl::modmenu::ButtonBuilder(kButtonId, "Item Swapper")
         .moduleId(kModuleId)
@@ -243,7 +339,7 @@ bool ItemSwapperMod::enable() {
     }
 
     gEnabled.store(true, std::memory_order_release);
-    logger.info("Item Swapper loaded; sword <-> axe hotbar switching is ready");
+    logger.info("Item Swapper loaded; selectable hotbar swap mechanics are ready");
     return true;
 }
 
