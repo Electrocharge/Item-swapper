@@ -2,14 +2,24 @@
 
 A native LeviLauncher mod for Minecraft Bedrock on Android (arm64-v8a).
 
-## Behaviour
+## Swap mechanics
 
-- Hold a sword and press **SWAP**: selects the first axe in the hotbar.
-- Hold an axe and press **SWAP**: selects the first sword in the hotbar.
-- Hold anything else: nothing happens by default.
-- Enable the **Sword Swap** setting to select a sword when holding neither a sword nor an axe.
-- If the requested item is not in the hotbar, nothing happens.
-- Only the selected hotbar index changes. Item stacks are never moved, copied, or overwritten.
+Choose exactly one mechanic in the **Swap mechanics** section:
+
+- **Sword to axe** (default): sword ↔ axe.
+- **Axe to pickaxe**: axe ↔ pickaxe.
+- **Sword to pickaxe**: sword ↔ pickaxe.
+
+The selector is single-choice, so choosing one mechanic automatically replaces the previous choice.
+
+## Fallback settings
+
+- **Sword Swap** appears for **Sword to axe** and **Sword to pickaxe**. When enabled, pressing SWAP while holding neither item in the selected pair selects a sword.
+- **Axe Swap** appears only for **Axe to pickaxe**. When enabled, pressing SWAP while holding neither item in that pair selects an axe.
+
+Both fallback settings default to OFF. If the requested item is not in the hotbar, nothing happens.
+
+Only the selected hotbar index changes. Item stacks are never moved, copied, or overwritten.
 
 ## Build
 
@@ -19,4 +29,4 @@ Target version is Minecraft Bedrock 1.26.62.x / LeviLauncher 1.7.1. The update-h
 
 ## Important test note
 
-This is the first implementation build, not a device-verified release. If the game build's update signature does not match, the mod logs an unsupported-build message and declines to install the hook rather than guessing at a function address.
+This implementation still needs a fresh build and in-game test on the target device. If the game build's update signature does not match, the mod logs an unsupported-build message and declines to install the hook rather than guessing at a function address.
