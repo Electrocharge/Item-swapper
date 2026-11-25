@@ -82,6 +82,10 @@ enum class ToolKind { Other, Sword, Axe, Pickaxe, Elytra, Fireworks, Chestplate,
 ToolKind classify(void* stack) {
     const auto* description = itemDescription(stack);
     if (!description) return ToolKind::Other;
+    if (description->find("elytra") != std::string::npos) return ToolKind::Elytra;
+    if (description->find("fireworks") != std::string::npos || description->find("firework_rocket") != std::string::npos) return ToolKind::Fireworks;
+    if (description->find("chestplate") != std::string::npos) return ToolKind::Chestplate;
+    if (description->find("mace") != std::string::npos) return ToolKind::Mace;
     if (description->find("sword") != std::string::npos) return ToolKind::Sword;
     if (description->find("_axe") != std::string::npos) return ToolKind::Axe;
     if (description->find("pickaxe") != std::string::npos) return ToolKind::Pickaxe;
@@ -170,6 +174,24 @@ void performSwap(void* client) {
             target = ToolKind::Pickaxe;
             fallbackEnabled = gSwordSwap.load(std::memory_order_acquire);
             break;
+        case SwapMechanic::MaceKit: {
+            ToolKind wanted = ToolKind::Elytra;
+            if (heldKind == ToolKind::Elytra) wanted = ToolKind::Fireworks;
+            else if (heldKind == ToolKind::Fireworks) wanted = ToolKind::Chestplate;
+            else if (heldKind == ToolKind::Chestplate) wanted = ToolKind::Mace;
+            else if (heldKind == ToolKind::Mace) wanted = ToolKind::Elytra;
+
+            auto* playerBytes = static_cast<std::byte*>(player);
+            void* inventoryProxy = *reinterpret_cast<void**>(playerBytes + kPlayerInventoryOffset);
+            if (!inventoryProxy) return;
+            auto* selectedSlot = reinterpret_cast<int*>(static_cast<std::byte*>(inventoryProxy) + kSelectedSlotOffset);
+            const int currentSlot = *selectedSlot;
+            if (currentSlot < 0 || currentSlot > 8) return;
+            int targetSlot = -1;
+            if (!findHotbarTarget(player, wanted, currentSlot, targetSlot)) return;
+            *selectedSlot = targetSlot;
+            return;
+        }
     }
 
     ToolKind wanted = ToolKind::Other;
@@ -252,7 +274,8 @@ bool ItemSwapperMod::enable() {
             if (key == "swap_mechanic") {
                 int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
                 if (value == "axe_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::AxeToPickaxe);
-                else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);\n                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
+                else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);
+                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);\n                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
                 gSwapMechanic.store(mechanic, std::memory_order_release);
             } else if (key == "sword_swap") {
                 gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
@@ -279,7 +302,8 @@ bool ItemSwapperMod::enable() {
         mechanic.options = {
             {"sword_to_axe", "Sword to axe"},
             {"axe_to_pickaxe", "Axe to pickaxe"},
-            {"sword_to_pickaxe", "Sword to pickaxe"}
+            {"sword_to_pickaxe", "Sword to pickaxe"},
+            {"mace_kit", "Mace Kit"}
         };
         schema.node(std::move(mechanic));
 
@@ -292,7 +316,8 @@ bool ItemSwapperMod::enable() {
         swordFallback.type = ConfigControlTypeV2::Toggle;
         swordFallback.defaultValue = "false";
         swordFallback.visibleWhen = {
-            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "axe_to_pickaxe"}
+            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "axe_to_pickaxe"},
+            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "mace_kit"}
         };
         schema.node(std::move(swordFallback));
 
