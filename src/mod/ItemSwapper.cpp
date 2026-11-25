@@ -26,7 +26,7 @@ constexpr std::size_t kClientGetLocalPlayerVtable = 31;
 constexpr std::size_t kPlayerGetCarriedItemVtable = 78;
 constexpr std::size_t kItemGetDescriptionIdVtable = 5;
 
-enum class SwapMechanic : int { SwordToAxe = 0, AxeToPickaxe = 1, SwordToPickaxe = 2 };
+enum class SwapMechanic : int { SwordToAxe = 0, AxeToPickaxe = 1, SwordToPickaxe = 2, MaceKit = 3 };
 
 // BedrockTools Inventory.hpp layout: Player + 0x590 -> PlayerInventory proxy;
 // proxy + 0xB8 -> inventory container; container + 0x140 -> item pointer range.
@@ -77,7 +77,7 @@ const std::string* itemDescription(void* stack) {
     return &description;
 }
 
-enum class ToolKind { Other, Sword, Axe, Pickaxe };
+enum class ToolKind { Other, Sword, Axe, Pickaxe, Elytra, Fireworks, Chestplate, Mace };
 
 ToolKind classify(void* stack) {
     const auto* description = itemDescription(stack);
@@ -252,7 +252,7 @@ bool ItemSwapperMod::enable() {
             if (key == "swap_mechanic") {
                 int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
                 if (value == "axe_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::AxeToPickaxe);
-                else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);
+                else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);\n                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
                 gSwapMechanic.store(mechanic, std::memory_order_release);
             } else if (key == "sword_swap") {
                 gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
