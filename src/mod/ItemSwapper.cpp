@@ -275,7 +275,7 @@ bool ItemSwapperMod::enable() {
                 int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
                 if (value == "axe_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::AxeToPickaxe);
                 else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);
-                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);\n                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
+                else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
                 gSwapMechanic.store(mechanic, std::memory_order_release);
             } else if (key == "sword_swap") {
                 gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
