@@ -48,6 +48,10 @@ std::atomic<int> gSwapMechanic{static_cast<int>(SwapMechanic::SwordToAxe)};
 std::atomic<bool> gSwordSwap{false};
 std::atomic<bool> gAxeSwap{false};
 std::atomic<bool> gMaceSkipStep{false};
+// Remember the last Mace Kit selection so equipping a chestplate (which removes
+// it from the selected hotbar slot) still advances to the mace on the next press.
+std::atomic<int> gMaceLastStep{-1};
+std::atomic<int> gMaceLastSlot{-1};
 std::atomic<bool> gSwapRequested{false};
 ClientInstanceUpdateFn gClientInstanceUpdateOriginal = nullptr;
 
@@ -179,12 +183,6 @@ void performSwap(void* client) {
             constexpr ToolKind kitOrder[] = {
                 ToolKind::Elytra, ToolKind::Fireworks, ToolKind::Chestplate, ToolKind::Mace
             };
-            int nextIndex = 0;
-            if (heldKind == ToolKind::Elytra) nextIndex = 1;
-            else if (heldKind == ToolKind::Fireworks) nextIndex = 2;
-            else if (heldKind == ToolKind::Chestplate) nextIndex = 3;
-            else if (heldKind == ToolKind::Mace) nextIndex = 0;
-
             auto* playerBytes = static_cast<std::byte*>(player);
             void* inventoryProxy = *reinterpret_cast<void**>(playerBytes + kPlayerInventoryOffset);
             if (!inventoryProxy) return;
@@ -192,13 +190,30 @@ void performSwap(void* client) {
             const int currentSlot = *selectedSlot;
             if (currentSlot < 0 || currentSlot > 8) return;
 
+            int nextIndex = 0;
+            if (heldKind == ToolKind::Elytra) nextIndex = 1;
+            else if (heldKind == ToolKind::Fireworks) nextIndex = 2;
+            else if (heldKind == ToolKind::Chestplate) nextIndex = 3;
+            else if (heldKind == ToolKind::Mace) nextIndex = 0;
+            else {
+                // Equipping a chestplate can empty the selected hotbar slot.
+                // If that is the slot we just selected as the chestplate, advance
+                // to mace rather than restarting the kit at Elytra/fireworks.
+                const int lastStep = gMaceLastStep.load(std::memory_order_acquire);
+                const int lastSlot = gMaceLastSlot.load(std::memory_order_acquire);
+                if (lastStep == 2 && lastSlot == currentSlot) nextIndex = 3;
+            }
+
             const bool skipStep = gMaceSkipStep.load(std::memory_order_acquire);
             const int attempts = skipStep ? 4 : 1;
             for (int step = 0; step < attempts; ++step) {
-                const ToolKind wanted = kitOrder[(nextIndex + step) % 4];
+                const int wantedIndex = (nextIndex + step) % 4;
+                const ToolKind wanted = kitOrder[wantedIndex];
                 int targetSlot = -1;
                 if (findHotbarTarget(player, wanted, currentSlot, targetSlot)) {
                     *selectedSlot = targetSlot;
+                    gMaceLastStep.store(wantedIndex, std::memory_order_release);
+                    gMaceLastSlot.store(targetSlot, std::memory_order_release);
                     return;
                 }
             }
