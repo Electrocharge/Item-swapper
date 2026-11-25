@@ -16,8 +16,8 @@ constexpr char kModuleId[] = "item_swapper";
 constexpr char kButtonId[] = "item_swapper_swap_button";
 constexpr char kGameLibrary[] = "libminecraftpe.so";
 
-// BedrockTools' ClientInstanceUpdate signature and SDK vtable indices.
-// The update hook runs the queued request after vanilla's update on the game thread.
+
+
 constexpr char kClientInstanceUpdateSignature[] =
     "? ? ? FC ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 ? ? ? A9 "
     "? ? ? 91 ? ? ? D1 59 D0 3B D5 ? ? ? 52 F5 03 02 2A";
@@ -28,10 +28,10 @@ constexpr std::size_t kItemGetDescriptionIdVtable = 5;
 
 enum class SwapMechanic : int { SwordToAxe = 0, AxeToPickaxe = 1, SwordToPickaxe = 2, MaceKit = 3 };
 
-// BedrockTools Inventory.hpp layout: Player + 0x590 -> PlayerInventory proxy;
-// proxy + 0xB8 -> inventory container; container + 0x140 -> item pointer range.
-// PlayerInventory::selectedSlot is +0x10 in independently published Bedrock SDKs.
-// ItemStack objects are 0x98 bytes; the first nine are the hotbar.
+
+
+
+
 constexpr std::size_t kPlayerInventoryOffset = 0x590;
 constexpr std::size_t kSelectedSlotOffset = 0x10;
 constexpr std::size_t kPlayerInventoryContainerOffset = 0xB8;
@@ -48,10 +48,9 @@ std::atomic<int> gSwapMechanic{static_cast<int>(SwapMechanic::SwordToAxe)};
 std::atomic<bool> gSwordSwap{false};
 std::atomic<bool> gAxeSwap{false};
 std::atomic<bool> gMaceSkipStep{false};
-// Remember the last Mace Kit selection so equipping a chestplate (which removes
-// it from the selected hotbar slot) still advances to the mace on the next press.
+
+
 std::atomic<int> gMaceLastStep{-1};
-std::atomic<int> gMaceLastSlot{-1};
 std::atomic<bool> gSwapRequested{false};
 ClientInstanceUpdateFn gClientInstanceUpdateOriginal = nullptr;
 
@@ -193,10 +192,10 @@ void performSwap(void* client) {
             int nextIndex = 0;
             const int lastStep = gMaceLastStep.load(std::memory_order_acquire);
 
-            // Chestplate is consumed from the hotbar when equipped. The game may
-            // then leave/select fireworks or another item as the carried stack.
-            // Give the completed chestplate step priority over that carried item:
-            // the next kit action must be mace, never fireworks/elytra again.
+
+
+
+
             if (lastStep == 2) nextIndex = 3;
             else if (heldKind == ToolKind::Elytra) nextIndex = 1;
             else if (heldKind == ToolKind::Fireworks) nextIndex = 2;
@@ -212,7 +211,6 @@ void performSwap(void* client) {
                 if (findHotbarTarget(player, wanted, currentSlot, targetSlot)) {
                     *selectedSlot = targetSlot;
                     gMaceLastStep.store(wantedIndex, std::memory_order_release);
-                    gMaceLastSlot.store(targetSlot, std::memory_order_release);
                     return;
                 }
             }
@@ -244,7 +242,7 @@ void performSwap(void* client) {
     int targetSlot = -1;
     if (!findHotbarTarget(player, wanted, currentSlot, targetSlot)) return;
 
-    // Change only the selected hotbar index. No ItemStack is copied or modified.
+
     *selectedSlot = targetSlot;
 }
 
@@ -256,7 +254,7 @@ void* clientInstanceUpdateDetour(void* client, bool value) {
     return result;
 }
 
-} // namespace
+}
 
 ItemSwapperMod& ItemSwapperMod::instance() {
     static ItemSwapperMod mod;
@@ -317,7 +315,6 @@ bool ItemSwapperMod::enable() {
         using namespace pl::modmenu;
         ConfigSchemaBuilder schema;
         schema.defaultCategory("general").category("general", "General");
-        
         ConfigNodeV2 mechanic;
         mechanic.id = "swap_mechanic";
         mechanic.key = "swap_mechanic";
