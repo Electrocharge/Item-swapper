@@ -200,8 +200,10 @@ void performSwap(void* client) {
                 // If that is the slot we just selected as the chestplate, advance
                 // to mace rather than restarting the kit at Elytra/fireworks.
                 const int lastStep = gMaceLastStep.load(std::memory_order_acquire);
-                const int lastSlot = gMaceLastSlot.load(std::memory_order_acquire);
-                if (lastStep == 2 && lastSlot == currentSlot) nextIndex = 3;
+                // The chestplate is now equipped, so its hotbar slot may be empty
+                // or the player may have selected a different slot. Track the step,
+                // not the slot identity, to continue to mace reliably.
+                if (lastStep == 2) nextIndex = 3;
             }
 
             const bool skipStep = gMaceSkipStep.load(std::memory_order_acquire);
