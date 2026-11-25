@@ -13,7 +13,7 @@ Choose exactly one mechanic in the **Swap mechanics** section:
 
 The selector is single-choice, so choosing one mechanic automatically replaces the previous choice.
 
-With **Mace Kit** selected, each press of SWAP advances to the next item in that sequence. If you're holding something outside the kit, it starts by selecting an Elytra. If the next item isn't present in the hotbar, the swap does nothing.
+With **Mace Kit** selected, each press of SWAP advances to the next item in that sequence. If you're holding something outside the kit, it starts by selecting an Elytra. If the next item isn't present in the hotbar, the swap does nothing by default. Enable **Skip step** (shown only with Mace Kit selected) to continue forward through the kit and select the next available item.
 
 ## Fallback settings
 
