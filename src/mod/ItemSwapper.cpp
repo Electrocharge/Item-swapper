@@ -47,6 +47,7 @@ std::atomic<bool> gEnabled{false};
 std::atomic<int> gSwapMechanic{static_cast<int>(SwapMechanic::SwordToAxe)};
 std::atomic<bool> gSwordSwap{false};
 std::atomic<bool> gAxeSwap{false};
+std::atomic<bool> gMaceSkipStep{false};
 std::atomic<bool> gSwapRequested{false};
 ClientInstanceUpdateFn gClientInstanceUpdateOriginal = nullptr;
 
@@ -175,11 +176,14 @@ void performSwap(void* client) {
             fallbackEnabled = gSwordSwap.load(std::memory_order_acquire);
             break;
         case SwapMechanic::MaceKit: {
-            ToolKind wanted = ToolKind::Elytra;
-            if (heldKind == ToolKind::Elytra) wanted = ToolKind::Fireworks;
-            else if (heldKind == ToolKind::Fireworks) wanted = ToolKind::Chestplate;
-            else if (heldKind == ToolKind::Chestplate) wanted = ToolKind::Mace;
-            else if (heldKind == ToolKind::Mace) wanted = ToolKind::Elytra;
+            constexpr ToolKind kitOrder[] = {
+                ToolKind::Elytra, ToolKind::Fireworks, ToolKind::Chestplate, ToolKind::Mace
+            };
+            int nextIndex = 0;
+            if (heldKind == ToolKind::Elytra) nextIndex = 1;
+            else if (heldKind == ToolKind::Fireworks) nextIndex = 2;
+            else if (heldKind == ToolKind::Chestplate) nextIndex = 3;
+            else if (heldKind == ToolKind::Mace) nextIndex = 0;
 
             auto* playerBytes = static_cast<std::byte*>(player);
             void* inventoryProxy = *reinterpret_cast<void**>(playerBytes + kPlayerInventoryOffset);
@@ -187,9 +191,17 @@ void performSwap(void* client) {
             auto* selectedSlot = reinterpret_cast<int*>(static_cast<std::byte*>(inventoryProxy) + kSelectedSlotOffset);
             const int currentSlot = *selectedSlot;
             if (currentSlot < 0 || currentSlot > 8) return;
-            int targetSlot = -1;
-            if (!findHotbarTarget(player, wanted, currentSlot, targetSlot)) return;
-            *selectedSlot = targetSlot;
+
+            const bool skipStep = gMaceSkipStep.load(std::memory_order_acquire);
+            const int attempts = skipStep ? 4 : 1;
+            for (int step = 0; step < attempts; ++step) {
+                const ToolKind wanted = kitOrder[(nextIndex + step) % 4];
+                int targetSlot = -1;
+                if (findHotbarTarget(player, wanted, currentSlot, targetSlot)) {
+                    *selectedSlot = targetSlot;
+                    return;
+                }
+            }
             return;
         }
     }
@@ -281,6 +293,8 @@ bool ItemSwapperMod::enable() {
                 gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
             } else if (key == "axe_swap") {
                 gAxeSwap.store(value == "true" || value == "1", std::memory_order_release);
+            } else if (key == "mace_skip_step") {
+                gMaceSkipStep.store(value == "true" || value == "1", std::memory_order_release);
             }
         })
         .registerModule();
@@ -333,6 +347,19 @@ bool ItemSwapperMod::enable() {
             {"swap_mechanic", ConfigConditionOpV2::Equals, "axe_to_pickaxe"}
         };
         schema.node(std::move(axeFallback));
+
+        ConfigNodeV2 maceSkipStep;
+        maceSkipStep.id = "mace_skip_step";
+        maceSkipStep.key = "mace_skip_step";
+        maceSkipStep.category = "general";
+        maceSkipStep.section = "Swap mechanics";
+        maceSkipStep.title = "Skip step";
+        maceSkipStep.type = ConfigControlTypeV2::Toggle;
+        maceSkipStep.defaultValue = "false";
+        maceSkipStep.visibleWhen = {
+            {"swap_mechanic", ConfigConditionOpV2::Equals, "mace_kit"}
+        };
+        schema.node(std::move(maceSkipStep));
 
         if (!setConfigSchemaJson(kModuleId, schema.toJson())) {
             logger.warn("Item Swapper: Mod Menu rejected the Swap mechanics settings schema");
