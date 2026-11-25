@@ -9,8 +9,11 @@ Choose exactly one mechanic in the **Swap mechanics** section:
 - **Sword to axe** (default): sword ↔ axe.
 - **Axe to pickaxe**: axe ↔ pickaxe.
 - **Sword to pickaxe**: sword ↔ pickaxe.
+- **Mace Kit**: Elytra → Fireworks → any chestplate in the hotbar → Mace → Elytra.
 
 The selector is single-choice, so choosing one mechanic automatically replaces the previous choice.
+
+With **Mace Kit** selected, each press of SWAP advances to the next item in that sequence. If you're holding something outside the kit, it starts by selecting an Elytra. If the next item isn't present in the hotbar, the swap does nothing.
 
 ## Fallback settings
 
