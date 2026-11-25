@@ -191,20 +191,17 @@ void performSwap(void* client) {
             if (currentSlot < 0 || currentSlot > 8) return;
 
             int nextIndex = 0;
-            if (heldKind == ToolKind::Elytra) nextIndex = 1;
+            const int lastStep = gMaceLastStep.load(std::memory_order_acquire);
+
+            // Chestplate is consumed from the hotbar when equipped. The game may
+            // then leave/select fireworks or another item as the carried stack.
+            // Give the completed chestplate step priority over that carried item:
+            // the next kit action must be mace, never fireworks/elytra again.
+            if (lastStep == 2) nextIndex = 3;
+            else if (heldKind == ToolKind::Elytra) nextIndex = 1;
             else if (heldKind == ToolKind::Fireworks) nextIndex = 2;
             else if (heldKind == ToolKind::Chestplate) nextIndex = 3;
             else if (heldKind == ToolKind::Mace) nextIndex = 0;
-            else {
-                // Equipping a chestplate can empty the selected hotbar slot.
-                // If that is the slot we just selected as the chestplate, advance
-                // to mace rather than restarting the kit at Elytra/fireworks.
-                const int lastStep = gMaceLastStep.load(std::memory_order_acquire);
-                // The chestplate is now equipped, so its hotbar slot may be empty
-                // or the player may have selected a different slot. Track the step,
-                // not the slot identity, to continue to mace reliably.
-                if (lastStep == 2) nextIndex = 3;
-            }
 
             const bool skipStep = gMaceSkipStep.load(std::memory_order_acquire);
             const int attempts = skipStep ? 4 : 1;
