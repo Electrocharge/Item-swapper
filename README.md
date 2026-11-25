@@ -13,14 +13,15 @@ Choose exactly one mechanic in the **Swap mechanics** section:
 
 The selector is single-choice, so choosing one mechanic automatically replaces the previous choice.
 
-With **Mace Kit** selected, each press of SWAP advances to the next item in that sequence. If you're holding something outside the kit, it starts by selecting an Elytra. If the next item isn't present in the hotbar, the swap does nothing by default. Enable **Skip step** (shown only with Mace Kit selected) to continue forward through the kit and select the next available item.
+With **Mace Kit** selected, each press of SWAP advances to the next item in that sequence. If you're holding something outside the kit, it starts by selecting an Elytra. If the next item isn't present in the hotbar, the swap does nothing by default.
 
 ## Fallback settings
 
 - **Sword Swap** appears for **Sword to axe** and **Sword to pickaxe**. When enabled, pressing SWAP while holding neither item in the selected pair selects a sword.
 - **Axe Swap** appears only for **Axe to pickaxe**. When enabled, pressing SWAP while holding neither item in that pair selects an axe.
+- **Skip step** appears only for **Mace Kit**. When enabled, if the next item in the sequence isn't in the hotbar, it continues forward and selects the next available kit item instead of doing nothing.
 
-Both fallback settings default to OFF. If the requested item is not in the hotbar, nothing happens.
+All fallback settings default to OFF. If the requested item is not in the hotbar, nothing happens (unless **Skip step** is enabled for Mace Kit).
 
 Only the selected hotbar index changes. Item stacks are never moved, copied, or overwritten.
 
