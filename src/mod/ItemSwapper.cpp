@@ -88,6 +88,7 @@ enum class ToolKind { Other, Sword, Axe, Pickaxe, Shovel, Hoe, Mace, Trident, Bo
 std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Sword)};
 std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Axe)};
 std::atomic<int> gButtonOpacity{85};
+std::atomic<bool> gMinecraftButton{false};
 
 ToolKind parseToolKind(std::string_view value) {
     if (value == "sword") return ToolKind::Sword;
@@ -114,13 +115,18 @@ bool registerSwapButton(const std::string& modId) {
     const auto active = (alpha << 24) | 0x4AE0A0U;
     const auto border = (alpha << 24) | 0x4AE0A0U;
     const auto text = (alpha << 24) | 0xFFFFFFU;
-    return pl::modmenu::ButtonBuilder(kButtonId, "Item Swapper")
+    const bool minecraftStyle = gMinecraftButton.load(std::memory_order_acquire);
+    auto builder = pl::modmenu::ButtonBuilder(kButtonId, "Item Swapper")
         .moduleId(kModuleId)
         .modId(modId)
         .label("SWAP")
         .behavior(pl::modmenu::ButtonBehavior::Click)
-        .stylePreset(pl::modmenu::ButtonStylePreset::Keycap)
-        .styleColors(normal, active, border)
+        .stylePreset(minecraftStyle
+            ? pl::modmenu::ButtonStylePreset::Accent
+            : pl::modmenu::ButtonStylePreset::Keycap)
+        .styleColors(minecraftStyle ? ((alpha << 24) | 0x555555U) : normal,
+                     minecraftStyle ? ((alpha << 24) | 0x777777U) : active,
+                     minecraftStyle ? ((alpha << 24) | 0x292929U) : border)
         .textColor(text)
         .activeTextColor(text)
         .defaultVisible(true)
@@ -129,8 +135,17 @@ bool registerSwapButton(const std::string& modId) {
                 gEnabled.load(std::memory_order_acquire)) {
                 gSwapRequested.store(true, std::memory_order_release);
             }
-        })
-        .registerButton();
+        });
+    if (minecraftStyle) {
+        builder.svgIcon(
+            "<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 24 24\\">"
+            "<path fill=\\"#d7f5b0\\" d=\\"M7 3h6l2 3h4l-3 5-3-5h-3l-1 2-3-2z"
+            "M4 10l3-5 3 5H7l-1 3 2 3H4l-2-4z"
+            "M10 18h6l2-3 3 3-3 3H8l-2-3 3-1z\\"/>"
+            "</svg>",
+            true);
+    }
+    return builder.registerButton();
 }
 
 ToolKind classify(void* stack) {
@@ -381,7 +396,7 @@ bool ItemSwapperMod::enable() {
                 gSwapFrom.store(static_cast<int>(parseToolKind(value)), std::memory_order_release);
             } else if (key == "swap_to") {
                 gSwapTo.store(static_cast<int>(parseToolKind(value)), std::memory_order_release);
-            } else if (key == "button_opacity") {
+            } else if (key == "minecraft_button_style") {\n                gMinecraftButton.store(value == "true" || value == "1", std::memory_order_release);\n                registerSwapButton(modId);\n            } else if (key == "button_opacity") {
                 try {
                     gButtonOpacity.store(std::clamp(std::stoi(std::string(value)), 0, 100), std::memory_order_release);
                     registerSwapButton(modId);
@@ -458,6 +473,16 @@ bool ItemSwapperMod::enable() {
             {"swap_mechanic", ConfigConditionOpV2::Equals, "custom"}
         };
         schema.node(std::move(customFallback));
+
+        ConfigNodeV2 minecraftButtonStyle;
+        minecraftButtonStyle.id = "minecraft_button_style";
+        minecraftButtonStyle.key = "minecraft_button_style";
+        minecraftButtonStyle.category = "general";
+        minecraftButtonStyle.section = "Button appearance";
+        minecraftButtonStyle.title = "Minecraft-style button (recycling icon)";
+        minecraftButtonStyle.type = ConfigControlTypeV2::Toggle;
+        minecraftButtonStyle.defaultValue = "false";
+        schema.node(std::move(minecraftButtonStyle));
 
         ConfigNodeV2 opacity;
         opacity.id = "button_opacity";
