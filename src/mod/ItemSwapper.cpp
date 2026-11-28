@@ -9,7 +9,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <nlohmann/json.hpp>
 
 namespace item_swapper {
 namespace {
@@ -105,6 +108,103 @@ ToolKind parseToolKind(std::string_view value) {
     if (value == "shears") return ToolKind::Shears;
     if (value == "flint_and_steel") return ToolKind::FlintAndSteel;
     return ToolKind::Other;
+}
+
+std::string mechanicValue(int mechanic) {
+    switch (static_cast<SwapMechanic>(mechanic)) {
+        case SwapMechanic::AxeToPickaxe: return "axe_to_pickaxe";
+        case SwapMechanic::SwordToPickaxe: return "sword_to_pickaxe";
+        case SwapMechanic::MaceKit: return "mace_kit";
+        case SwapMechanic::Custom: return "custom";
+        default: return "sword_to_axe";
+    }
+}
+
+std::string toolKindValue(int kind) {
+    switch (static_cast<ToolKind>(kind)) {
+        case ToolKind::Axe: return "axe";
+        case ToolKind::Pickaxe: return "pickaxe";
+        case ToolKind::Shovel: return "shovel";
+        case ToolKind::Hoe: return "hoe";
+        case ToolKind::Mace: return "mace";
+        case ToolKind::Trident: return "trident";
+        case ToolKind::Bow: return "bow";
+        case ToolKind::Crossbow: return "crossbow";
+        case ToolKind::Shield: return "shield";
+        case ToolKind::FishingRod: return "fishing_rod";
+        case ToolKind::Shears: return "shears";
+        case ToolKind::FlintAndSteel: return "flint_and_steel";
+        default: return "sword";
+    }
+}
+
+constexpr char kConfigPath[] = "/sdcard/games/ItemSwapper/config.json";
+
+void savePersistentConfig() {
+    nlohmann::json config;
+    config["swap_mechanic"] = mechanicValue(gSwapMechanic.load(std::memory_order_acquire));
+    config["sword_swap"] = gSwordSwap.load(std::memory_order_acquire);
+    config["axe_swap"] = gAxeSwap.load(std::memory_order_acquire);
+    config["mace_skip_step"] = gMaceSkipStep.load(std::memory_order_acquire);
+    config["custom_fallback"] = gCustomFallback.load(std::memory_order_acquire);
+    config["swap_from"] = toolKindValue(gSwapFrom.load(std::memory_order_acquire));
+    config["swap_to"] = toolKindValue(gSwapTo.load(std::memory_order_acquire));
+    config["minecraft_button_style"] = gMinecraftButton.load(std::memory_order_acquire);
+    config["button_opacity"] = gButtonOpacity.load(std::memory_order_acquire);
+
+    const std::filesystem::path path(kConfigPath);
+    const auto tempPath = path.string() + ".tmp";
+    try {
+        std::filesystem::create_directories(path.parent_path());
+        const std::string payload = config.dump(2);
+        {
+            std::ofstream out(tempPath, std::ios::binary | std::ios::trunc);
+            out.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+            out.flush();
+            if (!out) return;
+        }
+        std::error_code ec;
+        std::filesystem::rename(tempPath, path, ec);
+        if (ec) {
+            std::filesystem::remove(path, ec);
+            ec.clear();
+            std::filesystem::rename(tempPath, path, ec);
+            if (ec) std::filesystem::remove(tempPath, ec);
+        }
+    } catch (...) {
+        std::error_code ec;
+        std::filesystem::remove(tempPath, ec);
+    }
+}
+
+void loadPersistentConfig() {
+    try {
+        std::ifstream in(kConfigPath, std::ios::binary);
+        if (!in) {
+            savePersistentConfig();
+            return;
+        }
+        nlohmann::json config;
+        in >> config;
+        if (config.contains("swap_mechanic")) {
+            const auto value = config["swap_mechanic"].get<std::string>();
+            int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
+            if (value == "axe_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::AxeToPickaxe);
+            else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);
+            else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
+            else if (value == "custom") mechanic = static_cast<int>(SwapMechanic::Custom);
+            gSwapMechanic.store(mechanic, std::memory_order_release);
+        }
+        if (config.contains("sword_swap")) gSwordSwap.store(config["sword_swap"].get<bool>(), std::memory_order_release);
+        if (config.contains("axe_swap")) gAxeSwap.store(config["axe_swap"].get<bool>(), std::memory_order_release);
+        if (config.contains("mace_skip_step")) gMaceSkipStep.store(config["mace_skip_step"].get<bool>(), std::memory_order_release);
+        if (config.contains("custom_fallback")) gCustomFallback.store(config["custom_fallback"].get<bool>(), std::memory_order_release);
+        if (config.contains("swap_from")) gSwapFrom.store(static_cast<int>(parseToolKind(config["swap_from"].get<std::string>())), std::memory_order_release);
+        if (config.contains("swap_to")) gSwapTo.store(static_cast<int>(parseToolKind(config["swap_to"].get<std::string>())), std::memory_order_release);
+        if (config.contains("minecraft_button_style")) gMinecraftButton.store(config["minecraft_button_style"].get<bool>(), std::memory_order_release);
+        if (config.contains("button_opacity")) gButtonOpacity.store(std::clamp(config["button_opacity"].get<int>(), 0, 100), std::memory_order_release);
+    } catch (...) {
+    }
 }
 
 bool registerSwapButton(const std::string& modId) {
@@ -348,6 +448,8 @@ bool ItemSwapperMod::load() {
 bool ItemSwapperMod::enable() {
     auto& logger = getSelf().getLogger();
 
+    loadPersistentConfig();
+
     const auto target = pl::memory::resolveSignature(
         kClientInstanceUpdateSignature, kGameLibrary);
     if (!target) {
@@ -402,6 +504,7 @@ bool ItemSwapperMod::enable() {
                 } catch (...) {
                 }
             }
+            savePersistentConfig();
         })
         .registerModule();
 
