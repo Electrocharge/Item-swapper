@@ -84,8 +84,8 @@ const std::string* itemDescription(void* stack) {
 }
 
 enum class ToolKind { Other, Sword, Axe, Pickaxe, Shovel, Hoe, Mace, Trident, Bow, Crossbow, Shield, FishingRod, Shears, FlintAndSteel, Elytra, Fireworks, Chestplate };
-std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Pickaxe)};
-std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Shovel)};
+std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Sword)};
+std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Axe)};
 std::atomic<int> gButtonOpacity{85};
 
 ToolKind parseToolKind(std::string_view value) {
