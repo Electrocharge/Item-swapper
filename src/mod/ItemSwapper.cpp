@@ -4,6 +4,7 @@
 #include <pl/ModMenuConfig.hpp>
 #include <pl/memory/Signature.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +27,7 @@ constexpr std::size_t kClientGetLocalPlayerVtable = 31;
 constexpr std::size_t kPlayerGetCarriedItemVtable = 78;
 constexpr std::size_t kItemGetDescriptionIdVtable = 5;
 
-enum class SwapMechanic : int { SwordToAxe = 0, AxeToPickaxe = 1, SwordToPickaxe = 2, MaceKit = 3 };
+enum class SwapMechanic : int { SwordToAxe = 0, AxeToPickaxe = 1, SwordToPickaxe = 2, MaceKit = 3, Custom = 4 };
 
 
 
@@ -82,6 +83,44 @@ const std::string* itemDescription(void* stack) {
 }
 
 enum class ToolKind { Other, Sword, Axe, Pickaxe, Elytra, Fireworks, Chestplate, Mace };
+std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Sword)};
+std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Axe)};
+std::atomic<int> gButtonOpacity{85};
+
+ToolKind parseToolKind(std::string_view value) {
+    if (value == "sword") return ToolKind::Sword;
+    if (value == "axe") return ToolKind::Axe;
+    if (value == "pickaxe") return ToolKind::Pickaxe;
+    if (value == "mace") return ToolKind::Mace;
+    return ToolKind::Other;
+}
+
+bool registerSwapButton(const std::string& modId) {
+    pl::modmenu::unregisterButton(kButtonId);
+    const auto opacity = std::clamp(gButtonOpacity.load(std::memory_order_acquire), 0, 100);
+    const auto alpha = static_cast<std::uint32_t>(opacity * 255 / 100);
+    const auto normal = (alpha << 24) | 0x24282CU;
+    const auto active = (alpha << 24) | 0x4AE0A0U;
+    const auto border = (alpha << 24) | 0x4AE0A0U;
+    const auto text = (alpha << 24) | 0xFFFFFFU;
+    return pl::modmenu::ButtonBuilder(kButtonId, "Item Swapper")
+        .moduleId(kModuleId)
+        .modId(modId)
+        .label("SWAP")
+        .behavior(pl::modmenu::ButtonBehavior::Click)
+        .stylePreset(pl::modmenu::ButtonStylePreset::Keycap)
+        .styleColors(normal, active, border)
+        .textColor(text)
+        .activeTextColor(text)
+        .defaultVisible(true)
+        .onEvent([](std::string_view, pl::modmenu::ButtonEvent event, float) {
+            if (event == pl::modmenu::ButtonEvent::Click &&
+                gEnabled.load(std::memory_order_acquire)) {
+                gSwapRequested.store(true, std::memory_order_release);
+            }
+        })
+        .registerButton();
+}
 
 ToolKind classify(void* stack) {
     const auto* description = itemDescription(stack);
@@ -178,6 +217,11 @@ void performSwap(void* client) {
             target = ToolKind::Pickaxe;
             fallbackEnabled = gSwordSwap.load(std::memory_order_acquire);
             break;
+        case SwapMechanic::Custom:
+            source = static_cast<ToolKind>(gSwapFrom.load(std::memory_order_acquire));
+            target = static_cast<ToolKind>(gSwapTo.load(std::memory_order_acquire));
+            fallbackEnabled = false;
+            break;
         case SwapMechanic::MaceKit: {
             constexpr ToolKind kitOrder[] = {
                 ToolKind::Elytra, ToolKind::Fireworks, ToolKind::Chestplate, ToolKind::Mace
@@ -217,6 +261,8 @@ void performSwap(void* client) {
             return;
         }
     }
+
+    if (source == target || source == ToolKind::Other || target == ToolKind::Other) return;
 
     ToolKind wanted = ToolKind::Other;
     if (heldKind == source) {
@@ -287,19 +333,21 @@ bool ItemSwapperMod::enable() {
         return false;
     }
 
+    const std::string modId = getSelf().getId();
     const bool moduleRegistered = pl::modmenu::ModuleBuilder(kModuleId, "Item Swapper")
         .description("Swap between selected tool types in your hotbar.")
-        .modId(getSelf().getId())
+        .modId(modId)
         .defaultEnabled(true)
         .onToggle([](std::string_view, bool enabled) {
             gEnabled.store(enabled, std::memory_order_release);
         })
-        .onConfigChanged([](std::string_view, std::string_view key, std::string_view value) {
+        .onConfigChanged([modId](std::string_view, std::string_view key, std::string_view value) {
             if (key == "swap_mechanic") {
                 int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
                 if (value == "axe_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::AxeToPickaxe);
                 else if (value == "sword_to_pickaxe") mechanic = static_cast<int>(SwapMechanic::SwordToPickaxe);
                 else if (value == "mace_kit") mechanic = static_cast<int>(SwapMechanic::MaceKit);
+                else if (value == "custom") mechanic = static_cast<int>(SwapMechanic::Custom);
                 gSwapMechanic.store(mechanic, std::memory_order_release);
             } else if (key == "sword_swap") {
                 gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
@@ -307,6 +355,16 @@ bool ItemSwapperMod::enable() {
                 gAxeSwap.store(value == "true" || value == "1", std::memory_order_release);
             } else if (key == "mace_skip_step") {
                 gMaceSkipStep.store(value == "true" || value == "1", std::memory_order_release);
+            } else if (key == "swap_from") {
+                gSwapFrom.store(static_cast<int>(parseToolKind(value)), std::memory_order_release);
+            } else if (key == "swap_to") {
+                gSwapTo.store(static_cast<int>(parseToolKind(value)), std::memory_order_release);
+            } else if (key == "button_opacity") {
+                try {
+                    gButtonOpacity.store(std::clamp(std::stoi(std::string(value)), 0, 100), std::memory_order_release);
+                    registerSwapButton(modId);
+                } catch (...) {
+                }
             }
         })
         .registerModule();
@@ -328,9 +386,48 @@ bool ItemSwapperMod::enable() {
             {"sword_to_axe", "Sword to axe"},
             {"axe_to_pickaxe", "Axe to pickaxe"},
             {"sword_to_pickaxe", "Sword to pickaxe"},
-            {"mace_kit", "Mace Kit"}
+            {"mace_kit", "Mace Kit"},
+            {"custom", "Custom tools"}
         };
         schema.node(std::move(mechanic));
+
+        auto makeToolChoice = [](const std::string& id, const std::string& title, const std::string& defaultValue) {
+            ConfigNodeV2 node;
+            node.id = id;
+            node.key = id;
+            node.category = "general";
+            node.section = "Custom tool selection";
+            node.title = title;
+            node.type = ConfigControlTypeV2::Choice;
+            node.choiceStyle = ConfigChoiceStyleV2::Dropdown;
+            node.defaultValue = defaultValue;
+            node.options = {
+                {"sword", "Sword"},
+                {"axe", "Axe"},
+                {"pickaxe", "Pickaxe"},
+                {"mace", "Mace"}
+            };
+            node.visibleWhen = {
+                {"swap_mechanic", ConfigConditionOpV2::Equals, "custom"}
+            };
+            return node;
+        };
+        schema.node(makeToolChoice("swap_from", "Switch from", "sword"));
+        schema.node(makeToolChoice("swap_to", "Switch to", "axe"));
+
+        ConfigNodeV2 opacity;
+        opacity.id = "button_opacity";
+        opacity.key = "button_opacity";
+        opacity.category = "general";
+        opacity.section = "Button appearance";
+        opacity.title = "Opacity";
+        opacity.type = ConfigControlTypeV2::SliderInt;
+        opacity.defaultValue = "85";
+        opacity.minValue = "0";
+        opacity.maxValue = "100";
+        opacity.step = "1";
+        opacity.unit = "%";
+        schema.node(std::move(opacity));
 
         ConfigNodeV2 swordFallback;
         swordFallback.id = "sword_swap";
@@ -342,7 +439,8 @@ bool ItemSwapperMod::enable() {
         swordFallback.defaultValue = "false";
         swordFallback.visibleWhen = {
             {"swap_mechanic", ConfigConditionOpV2::NotEquals, "axe_to_pickaxe"},
-            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "mace_kit"}
+            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "mace_kit"},
+            {"swap_mechanic", ConfigConditionOpV2::NotEquals, "custom"}
         };
         schema.node(std::move(swordFallback));
 
@@ -377,19 +475,7 @@ bool ItemSwapperMod::enable() {
         }
     }
 
-    const bool buttonRegistered = pl::modmenu::ButtonBuilder(kButtonId, "Item Swapper")
-        .moduleId(kModuleId)
-        .modId(getSelf().getId())
-        .label("SWAP")
-        .behavior(pl::modmenu::ButtonBehavior::Click)
-        .defaultVisible(true)
-        .onEvent([](std::string_view, pl::modmenu::ButtonEvent event, float) {
-            if (event == pl::modmenu::ButtonEvent::Click &&
-                gEnabled.load(std::memory_order_acquire)) {
-                gSwapRequested.store(true, std::memory_order_release);
-            }
-        })
-        .registerButton();
+    const bool buttonRegistered = registerSwapButton(modId);
 
     if (!moduleRegistered || !buttonRegistered) {
         logger.error("Item Swapper: failed to register its Mod Menu controls");
