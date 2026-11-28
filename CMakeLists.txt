@@ -11,7 +11,7 @@ set(MOD_NAME "Item Swapper" CACHE STRING "LeviLauncher mod name")
 set(MOD_AUTHOR "Electrocharge" CACHE STRING "Mod author")
 set(MOD_VERSION "0.1.0" CACHE STRING "Mod version")
 set(MOD_LIBRARY_NAME "item_swapper" CACHE STRING "Native library name")
-set(MOD_MINECRAFT_VERSIONS "[\"1.26.62.*\"]" CACHE STRING "Supported Minecraft versions")
+set(MOD_MINECRAFT_VERSIONS "[\"1.26.66.*\"]" CACHE STRING "Supported Minecraft versions")
 
 include(FetchContent)
 FetchContent_Declare(preloader_android
