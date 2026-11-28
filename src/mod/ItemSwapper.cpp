@@ -138,11 +138,7 @@ bool registerSwapButton(const std::string& modId) {
         });
     if (minecraftStyle) {
         builder.svgIcon(
-            "<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 24 24\\">"
-            "<path fill=\\"#d7f5b0\\" d=\\"M7 3h6l2 3h4l-3 5-3-5h-3l-1 2-3-2z"
-            "M4 10l3-5 3 5H7l-1 3 2 3H4l-2-4z"
-            "M10 18h6l2-3 3 3-3 3H8l-2-3 3-1z\\"/>"
-            "</svg>",
+            R"svg(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#d7f5b0" d="M7 3h6l2 3h4l-3 5-3-5h-3l-1 2-3-2z M4 10l3-5 3 5H7l-1 3 2 3H4l-2-4z M10 18h6l2-3 3 3-3 3H8l-2-3 3-1z"/></svg>)svg",
             true);
     }
     return builder.registerButton();
@@ -396,7 +392,10 @@ bool ItemSwapperMod::enable() {
                 gSwapFrom.store(static_cast<int>(parseToolKind(value)), std::memory_order_release);
             } else if (key == "swap_to") {
                 gSwapTo.store(static_cast<int>(parseToolKind(value)), std::memory_order_release);
-            } else if (key == "minecraft_button_style") {\n                gMinecraftButton.store(value == "true" || value == "1", std::memory_order_release);\n                registerSwapButton(modId);\n            } else if (key == "button_opacity") {
+            } else if (key == "minecraft_button_style") {
+                gMinecraftButton.store(value == "true" || value == "1", std::memory_order_release);
+                registerSwapButton(modId);
+            } else if (key == "button_opacity") {
                 try {
                     gButtonOpacity.store(std::clamp(std::stoi(std::string(value)), 0, 100), std::memory_order_release);
                     registerSwapButton(modId);
