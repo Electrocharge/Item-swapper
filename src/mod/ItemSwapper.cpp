@@ -82,16 +82,15 @@ const std::string* itemDescription(void* stack) {
     return &description;
 }
 
-enum class ToolKind { Other, Sword, Axe, Pickaxe, Elytra, Fireworks, Chestplate, Mace };
-std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Sword)};
-std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Axe)};
+enum class ToolKind { Other, Sword, Axe, Pickaxe, Shovel, Hoe, Elytra, Fireworks, Chestplate, Mace };
+std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Pickaxe)};
+std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Shovel)};
 std::atomic<int> gButtonOpacity{85};
 
 ToolKind parseToolKind(std::string_view value) {
-    if (value == "sword") return ToolKind::Sword;
-    if (value == "axe") return ToolKind::Axe;
     if (value == "pickaxe") return ToolKind::Pickaxe;
-    if (value == "mace") return ToolKind::Mace;
+    if (value == "shovel") return ToolKind::Shovel;
+    if (value == "hoe") return ToolKind::Hoe;
     return ToolKind::Other;
 }
 
@@ -132,6 +131,8 @@ ToolKind classify(void* stack) {
     if (description->find("sword") != std::string::npos) return ToolKind::Sword;
     if (description->find("_axe") != std::string::npos) return ToolKind::Axe;
     if (description->find("pickaxe") != std::string::npos) return ToolKind::Pickaxe;
+    if (description->find("shovel") != std::string::npos) return ToolKind::Shovel;
+    if (description->find("hoe") != std::string::npos) return ToolKind::Hoe;
     return ToolKind::Other;
 }
 
@@ -402,10 +403,9 @@ bool ItemSwapperMod::enable() {
             node.choiceStyle = ConfigChoiceStyleV2::Dropdown;
             node.defaultValue = defaultValue;
             node.options = {
-                {"sword", "Sword"},
-                {"axe", "Axe"},
                 {"pickaxe", "Pickaxe"},
-                {"mace", "Mace"}
+                {"shovel", "Shovel"},
+                {"hoe", "Hoe"}
             };
             node.visibleWhen = {
                 {"swap_mechanic", ConfigConditionOpV2::Equals, "custom"}
