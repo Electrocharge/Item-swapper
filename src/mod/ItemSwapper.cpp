@@ -521,6 +521,8 @@ bool ItemSwapperMod::enable() {
         mechanic.type = ConfigControlTypeV2::Choice;
         mechanic.choiceStyle = ConfigChoiceStyleV2::Radio;
         mechanic.defaultValue = "sword_to_axe";
+        mechanic.currentValue = mechanicValue(gSwapMechanic.load(std::memory_order_acquire));
+        mechanic.hasCurrentValue = true;
         mechanic.options = {
             {"sword_to_axe", "Sword to axe"},
             {"axe_to_pickaxe", "Axe to pickaxe"},
@@ -540,6 +542,10 @@ bool ItemSwapperMod::enable() {
             node.type = ConfigControlTypeV2::Choice;
             node.choiceStyle = ConfigChoiceStyleV2::Dropdown;
             node.defaultValue = defaultValue;
+            node.currentValue = id == "swap_from"
+                ? toolKindValue(gSwapFrom.load(std::memory_order_acquire))
+                : toolKindValue(gSwapTo.load(std::memory_order_acquire));
+            node.hasCurrentValue = true;
             node.options = {
                 {"sword", "Sword"},
                 {"axe", "Axe"},
@@ -571,6 +577,8 @@ bool ItemSwapperMod::enable() {
         customFallback.title = "Swap to Switch from when holding neither";
         customFallback.type = ConfigControlTypeV2::Toggle;
         customFallback.defaultValue = "false";
+        customFallback.currentValue = gCustomFallback.load(std::memory_order_acquire) ? "true" : "false";
+        customFallback.hasCurrentValue = true;
         customFallback.visibleWhen = {
             {"swap_mechanic", ConfigConditionOpV2::Equals, "custom"}
         };
@@ -584,6 +592,8 @@ bool ItemSwapperMod::enable() {
         minecraftButtonStyle.title = "Minecraft-style button (recycling icon)";
         minecraftButtonStyle.type = ConfigControlTypeV2::Toggle;
         minecraftButtonStyle.defaultValue = "false";
+        minecraftButtonStyle.currentValue = gMinecraftButton.load(std::memory_order_acquire) ? "true" : "false";
+        minecraftButtonStyle.hasCurrentValue = true;
         schema.node(std::move(minecraftButtonStyle));
 
         ConfigNodeV2 opacity;
@@ -594,6 +604,8 @@ bool ItemSwapperMod::enable() {
         opacity.title = "Opacity";
         opacity.type = ConfigControlTypeV2::SliderInt;
         opacity.defaultValue = "85";
+        opacity.currentValue = std::to_string(gButtonOpacity.load(std::memory_order_acquire));
+        opacity.hasCurrentValue = true;
         opacity.minValue = "0";
         opacity.maxValue = "100";
         opacity.step = "1";
@@ -608,6 +620,8 @@ bool ItemSwapperMod::enable() {
         swordFallback.title = "Sword Swap";
         swordFallback.type = ConfigControlTypeV2::Toggle;
         swordFallback.defaultValue = "false";
+        swordFallback.currentValue = gSwordSwap.load(std::memory_order_acquire) ? "true" : "false";
+        swordFallback.hasCurrentValue = true;
         swordFallback.visibleWhen = {
             {"swap_mechanic", ConfigConditionOpV2::NotEquals, "axe_to_pickaxe"},
             {"swap_mechanic", ConfigConditionOpV2::NotEquals, "mace_kit"},
@@ -623,6 +637,8 @@ bool ItemSwapperMod::enable() {
         axeFallback.title = "Axe Swap";
         axeFallback.type = ConfigControlTypeV2::Toggle;
         axeFallback.defaultValue = "false";
+        axeFallback.currentValue = gAxeSwap.load(std::memory_order_acquire) ? "true" : "false";
+        axeFallback.hasCurrentValue = true;
         axeFallback.visibleWhen = {
             {"swap_mechanic", ConfigConditionOpV2::Equals, "axe_to_pickaxe"}
         };
@@ -636,6 +652,8 @@ bool ItemSwapperMod::enable() {
         maceSkipStep.title = "Skip step";
         maceSkipStep.type = ConfigControlTypeV2::Toggle;
         maceSkipStep.defaultValue = "false";
+        maceSkipStep.currentValue = gMaceSkipStep.load(std::memory_order_acquire) ? "true" : "false";
+        maceSkipStep.hasCurrentValue = true;
         maceSkipStep.visibleWhen = {
             {"swap_mechanic", ConfigConditionOpV2::Equals, "mace_kit"}
         };
