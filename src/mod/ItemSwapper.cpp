@@ -50,6 +50,7 @@ std::atomic<int> gSwapMechanic{static_cast<int>(SwapMechanic::SwordToAxe)};
 std::atomic<bool> gSwordSwap{false};
 std::atomic<bool> gAxeSwap{false};
 std::atomic<bool> gMaceSkipStep{false};
+std::atomic<bool> gCustomFallback{false};
 
 
 std::atomic<int> gMaceLastStep{-1};
@@ -239,7 +240,7 @@ void performSwap(void* client) {
         case SwapMechanic::Custom:
             source = static_cast<ToolKind>(gSwapFrom.load(std::memory_order_acquire));
             target = static_cast<ToolKind>(gSwapTo.load(std::memory_order_acquire));
-            fallbackEnabled = false;
+            fallbackEnabled = gCustomFallback.load(std::memory_order_acquire);
             break;
         case SwapMechanic::MaceKit: {
             constexpr ToolKind kitOrder[] = {
@@ -372,6 +373,8 @@ bool ItemSwapperMod::enable() {
                 gSwordSwap.store(value == "true" || value == "1", std::memory_order_release);
             } else if (key == "axe_swap") {
                 gAxeSwap.store(value == "true" || value == "1", std::memory_order_release);
+            } else if (key == "custom_fallback") {
+                gCustomFallback.store(value == "true" || value == "1", std::memory_order_release);
             } else if (key == "mace_skip_step") {
                 gMaceSkipStep.store(value == "true" || value == "1", std::memory_order_release);
             } else if (key == "swap_from") {
@@ -442,6 +445,19 @@ bool ItemSwapperMod::enable() {
         };
         schema.node(makeToolChoice("swap_from", "Switch from", "sword"));
         schema.node(makeToolChoice("swap_to", "Switch to", "axe"));
+
+        ConfigNodeV2 customFallback;
+        customFallback.id = "custom_fallback";
+        customFallback.key = "custom_fallback";
+        customFallback.category = "general";
+        customFallback.section = "Custom tool selection";
+        customFallback.title = "Swap to Switch from when holding neither";
+        customFallback.type = ConfigControlTypeV2::Toggle;
+        customFallback.defaultValue = "false";
+        customFallback.visibleWhen = {
+            {"swap_mechanic", ConfigConditionOpV2::Equals, "custom"}
+        };
+        schema.node(std::move(customFallback));
 
         ConfigNodeV2 opacity;
         opacity.id = "button_opacity";
