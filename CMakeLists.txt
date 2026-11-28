@@ -47,7 +47,7 @@ target_include_directories(item_swapper PRIVATE src "${LEVI_PRELOADER_INCLUDE_DI
 target_compile_options(item_swapper PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
 target_link_options(item_swapper PRIVATE "-Wl,-z,max-page-size=16384")
 find_library(log-lib log REQUIRED)
-target_link_libraries(item_swapper PRIVATE preloader fmt::fmt ${log-lib})
+target_link_libraries(item_swapper PRIVATE preloader fmt::fmt nlohmann_json::nlohmann_json ${log-lib})
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/manifest.json.in" "${CMAKE_CURRENT_BINARY_DIR}/manifest.json" @ONLY)
 
