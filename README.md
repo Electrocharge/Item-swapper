@@ -38,7 +38,11 @@ This implementation still needs a fresh build and in-game test on the target dev
 
 ## Custom tool selection
 
-Select **Custom tools** under Swap mechanics to choose the item type to switch from and the item type to switch to. Available choices are Pickaxe, Shovel, and Hoe. The custom tool choices appear only while Custom tools is selected.
+Select **Custom tools** under Swap mechanics to choose the item type to switch from and the item type to switch to. Available choices include Sword, Axe, Pickaxe, Shovel, Hoe, Mace, Trident, Bow, Crossbow, Shield, Fishing Rod, Shears, and Flint and Steel. The custom tool choices appear only while Custom tools is selected.
+
+## Custom tool types
+
+Custom tools can switch between Sword, Axe, Pickaxe, Shovel, Hoe, Mace, Trident, Bow, Crossbow, Shield, Fishing Rod, Shears, and Flint and Steel.
 
 ## Button appearance
 
