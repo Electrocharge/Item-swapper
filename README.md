@@ -29,8 +29,17 @@ Only the selected hotbar index changes. Item stacks are never moved, copied, or 
 
 GitHub Actions builds the Android arm64 package and uploads a `.levipack` artifact.
 
-Target version is Minecraft Bedrock 1.26.62.x / LeviLauncher 1.7.1. The update-hook signature and inventory layout are based on BedrockTools SDK references; the selected-slot member offset is cross-checked against independent Bedrock SDK sources but still needs an in-game test on the target build.
+Target version is Minecraft Bedrock 1.26.66.x / LeviLauncher 1.7.1. The update-hook signature and inventory layout are based on BedrockTools SDK references; the selected-slot member offset is cross-checked against independent Bedrock SDK sources but still needs an in-game test on the target build.
 
 ## Important test note
 
 This implementation still needs a fresh build and in-game test on the target device. If the game build's update signature does not match, the mod logs an unsupported-build message and declines to install the hook rather than guessing at a function address.
+
+
+## Custom tool selection
+
+Select **Custom tools** under Swap mechanics to choose the item type to switch from and the item type to switch to. Available choices are Sword, Axe, Pickaxe, and Mace. The custom tool choices appear only while Custom tools is selected.
+
+## Button appearance
+
+Use the **Opacity** slider to adjust the SWAP button transparency from 0% to 100%.
