@@ -5,6 +5,7 @@
 #include <pl/memory/Signature.hpp>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -82,15 +83,25 @@ const std::string* itemDescription(void* stack) {
     return &description;
 }
 
-enum class ToolKind { Other, Sword, Axe, Pickaxe, Shovel, Hoe, Elytra, Fireworks, Chestplate, Mace };
+enum class ToolKind { Other, Sword, Axe, Pickaxe, Shovel, Hoe, Mace, Trident, Bow, Crossbow, Shield, FishingRod, Shears, FlintAndSteel, Elytra, Fireworks, Chestplate };
 std::atomic<int> gSwapFrom{static_cast<int>(ToolKind::Pickaxe)};
 std::atomic<int> gSwapTo{static_cast<int>(ToolKind::Shovel)};
 std::atomic<int> gButtonOpacity{85};
 
 ToolKind parseToolKind(std::string_view value) {
+    if (value == "sword") return ToolKind::Sword;
+    if (value == "axe") return ToolKind::Axe;
     if (value == "pickaxe") return ToolKind::Pickaxe;
     if (value == "shovel") return ToolKind::Shovel;
     if (value == "hoe") return ToolKind::Hoe;
+    if (value == "mace") return ToolKind::Mace;
+    if (value == "trident") return ToolKind::Trident;
+    if (value == "bow") return ToolKind::Bow;
+    if (value == "crossbow") return ToolKind::Crossbow;
+    if (value == "shield") return ToolKind::Shield;
+    if (value == "fishing_rod") return ToolKind::FishingRod;
+    if (value == "shears") return ToolKind::Shears;
+    if (value == "flint_and_steel") return ToolKind::FlintAndSteel;
     return ToolKind::Other;
 }
 
@@ -128,6 +139,13 @@ ToolKind classify(void* stack) {
     if (description->find("fireworks") != std::string::npos || description->find("firework_rocket") != std::string::npos) return ToolKind::Fireworks;
     if (description->find("chestplate") != std::string::npos) return ToolKind::Chestplate;
     if (description->find("mace") != std::string::npos) return ToolKind::Mace;
+    if (description->find("trident") != std::string::npos) return ToolKind::Trident;
+    if (description->find("crossbow") != std::string::npos) return ToolKind::Crossbow;
+    if (description->find("bow") != std::string::npos) return ToolKind::Bow;
+    if (description->find("shield") != std::string::npos) return ToolKind::Shield;
+    if (description->find("fishing_rod") != std::string::npos) return ToolKind::FishingRod;
+    if (description->find("shears") != std::string::npos) return ToolKind::Shears;
+    if (description->find("flint_and_steel") != std::string::npos) return ToolKind::FlintAndSteel;
     if (description->find("sword") != std::string::npos) return ToolKind::Sword;
     if (description->find("_axe") != std::string::npos) return ToolKind::Axe;
     if (description->find("pickaxe") != std::string::npos) return ToolKind::Pickaxe;
@@ -152,31 +170,29 @@ void* getCarriedItem(void* player) {
     return reinterpret_cast<GetCarriedItemFn>(vtable[kPlayerGetCarriedItemVtable])(player);
 }
 
-bool findHotbarTarget(void* player, ToolKind wanted, int currentSlot, int& targetSlot) {
+bool getHotbarKinds(void* player, std::array<ToolKind, 9>& kinds) {
     auto* playerBytes = static_cast<std::byte*>(player);
-    void* inventoryProxy =
-        *reinterpret_cast<void**>(playerBytes + kPlayerInventoryOffset);
+    void* inventoryProxy = *reinterpret_cast<void**>(playerBytes + kPlayerInventoryOffset);
     if (!inventoryProxy) return false;
-
     auto* proxyBytes = static_cast<std::byte*>(inventoryProxy);
-    void* inventory =
-        *reinterpret_cast<void**>(proxyBytes + kPlayerInventoryContainerOffset);
+    void* inventory = *reinterpret_cast<void**>(proxyBytes + kPlayerInventoryContainerOffset);
     if (!inventory) return false;
-
     auto* inventoryBytes = static_cast<std::byte*>(inventory);
-    const auto begin = *reinterpret_cast<std::uintptr_t*>(
-        inventoryBytes + kFillingContainerItemsOffset);
-    const auto end = *reinterpret_cast<std::uintptr_t*>(
-        inventoryBytes + kFillingContainerItemsOffset + sizeof(void*));
-
+    const auto begin = *reinterpret_cast<std::uintptr_t*>(inventoryBytes + kFillingContainerItemsOffset);
+    const auto end = *reinterpret_cast<std::uintptr_t*>(inventoryBytes + kFillingContainerItemsOffset + sizeof(void*));
     if (!begin || end < begin || (end - begin) % kItemStackSize != 0) return false;
     const auto count = (end - begin) / kItemStackSize;
     if (count < 9 || count > 64) return false;
-
     for (int slot = 0; slot < 9; ++slot) {
-        if (slot == currentSlot) continue;
         auto* stack = reinterpret_cast<void*>(begin + static_cast<std::size_t>(slot) * kItemStackSize);
-        if (classify(stack) == wanted) {
+        kinds[static_cast<std::size_t>(slot)] = classify(stack);
+    }
+    return true;
+}
+
+bool findHotbarTarget(const std::array<ToolKind, 9>& kinds, ToolKind wanted, int currentSlot, int& targetSlot) {
+    for (int slot = 0; slot < 9; ++slot) {
+        if (slot != currentSlot && kinds[static_cast<std::size_t>(slot)] == wanted) {
             targetSlot = slot;
             return true;
         }
@@ -192,6 +208,8 @@ void performSwap(void* client) {
 
     void* player = getLocalPlayer(client);
     if (!player) return;
+    std::array<ToolKind, 9> hotbar{};
+    if (!getHotbarKinds(player, hotbar)) return;
 
     void* carried = getCarriedItem(player);
     const ToolKind heldKind = classify(carried);
@@ -253,7 +271,7 @@ void performSwap(void* client) {
                 const int wantedIndex = (nextIndex + step) % 4;
                 const ToolKind wanted = kitOrder[wantedIndex];
                 int targetSlot = -1;
-                if (findHotbarTarget(player, wanted, currentSlot, targetSlot)) {
+                if (findHotbarTarget(hotbar, wanted, currentSlot, targetSlot)) {
                     *selectedSlot = targetSlot;
                     gMaceLastStep.store(wantedIndex, std::memory_order_release);
                     return;
@@ -287,7 +305,7 @@ void performSwap(void* client) {
     if (currentSlot < 0 || currentSlot > 8) return;
 
     int targetSlot = -1;
-    if (!findHotbarTarget(player, wanted, currentSlot, targetSlot)) return;
+    if (!findHotbarTarget(hotbar, wanted, currentSlot, targetSlot)) return;
 
 
     *selectedSlot = targetSlot;
@@ -403,9 +421,19 @@ bool ItemSwapperMod::enable() {
             node.choiceStyle = ConfigChoiceStyleV2::Dropdown;
             node.defaultValue = defaultValue;
             node.options = {
+                {"sword", "Sword"},
+                {"axe", "Axe"},
                 {"pickaxe", "Pickaxe"},
                 {"shovel", "Shovel"},
-                {"hoe", "Hoe"}
+                {"hoe", "Hoe"},
+                {"mace", "Mace"},
+                {"trident", "Trident"},
+                {"bow", "Bow"},
+                {"crossbow", "Crossbow"},
+                {"shield", "Shield"},
+                {"fishing_rod", "Fishing Rod"},
+                {"shears", "Shears"},
+                {"flint_and_steel", "Flint and Steel"}
             };
             node.visibleWhen = {
                 {"swap_mechanic", ConfigConditionOpV2::Equals, "custom"}
