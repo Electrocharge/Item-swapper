@@ -48,7 +48,7 @@ constexpr std::size_t kItemStackValidOffset = 0x23;
 
 using ClientInstanceUpdateFn = void* (*)(void*, bool);
 
-std::atomic<bool> gEnabled{false};
+std::atomic<bool> gEnabled{true};
 std::atomic<int> gSwapMechanic{static_cast<int>(SwapMechanic::SwordToAxe)};
 std::atomic<bool> gSwordSwap{false};
 std::atomic<bool> gAxeSwap{false};
@@ -142,6 +142,7 @@ constexpr char kConfigPath[] = "/sdcard/games/ItemSwapper/config.json";
 
 void savePersistentConfig() {
     nlohmann::json config;
+    config["enabled"] = gEnabled.load(std::memory_order_acquire);
     config["swap_mechanic"] = mechanicValue(gSwapMechanic.load(std::memory_order_acquire));
     config["sword_swap"] = gSwordSwap.load(std::memory_order_acquire);
     config["axe_swap"] = gAxeSwap.load(std::memory_order_acquire);
@@ -186,6 +187,7 @@ void loadPersistentConfig() {
         }
         nlohmann::json config;
         in >> config;
+        if (config.contains("enabled")) gEnabled.store(config["enabled"].get<bool>(), std::memory_order_release);
         if (config.contains("swap_mechanic")) {
             const auto value = config["swap_mechanic"].get<std::string>();
             int mechanic = static_cast<int>(SwapMechanic::SwordToAxe);
@@ -470,9 +472,10 @@ bool ItemSwapperMod::enable() {
     const bool moduleRegistered = pl::modmenu::ModuleBuilder(kModuleId, "Item Swapper")
         .description("Swap between selected tool types in your hotbar.")
         .modId(modId)
-        .defaultEnabled(true)
+        .defaultEnabled(gEnabled.load(std::memory_order_acquire))
         .onToggle([](std::string_view, bool enabled) {
             gEnabled.store(enabled, std::memory_order_release);
+            savePersistentConfig();
         })
         .onConfigChanged([modId](std::string_view, std::string_view key, std::string_view value) {
             if (key == "swap_mechanic") {
@@ -674,7 +677,6 @@ bool ItemSwapperMod::enable() {
         return false;
     }
 
-    gEnabled.store(true, std::memory_order_release);
     logger.info("Item Swapper loaded; selectable hotbar swap mechanics are ready");
     return true;
 }
