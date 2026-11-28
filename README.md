@@ -47,3 +47,6 @@ Custom tools can switch between Sword, Axe, Pickaxe, Shovel, Hoe, Mace, Trident,
 ## Button appearance
 
 Use the **Opacity** slider to adjust the SWAP button transparency from 0% to 100%.
+
+
+The **Minecraft-style button (recycling icon)** toggle changes the floating SWAP button to a blocky Minecraft-inspired style with a recycling symbol. It is OFF by default; the Opacity slider still applies.
